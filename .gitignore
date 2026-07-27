@@ -1,0 +1,16 @@
+# .NET / WinUI build output
+bin/
+obj/
+*.user
+.vs/
+publish/
+*.msix
+*.appx
+# installer output
+installer/Output/
+*.exe
+!web/**/*.exe
+# secrets — never commit account creds / keys
+*.env
+.keys
+secrets.json
