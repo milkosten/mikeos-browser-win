@@ -15,6 +15,7 @@ public sealed class Session
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MikeBrowser");
     private static readonly string RefreshFile = Path.Combine(Dir, "refresh.bin");
     private static readonly string VdkFile = Path.Combine(Dir, "vdk.bin");
+    private static readonly string HiveFile = Path.Combine(Dir, "hive.bin");
     private static readonly string PrefsFile = Path.Combine(Dir, "prefs.json");
 
     private sealed class Prefs { public string? LastUrl { get; set; } }
@@ -62,6 +63,28 @@ public sealed class Session
         {
             if (vdk == null || vdk.Length == 0) { if (File.Exists(VdkFile)) File.Delete(VdkFile); return; }
             File.WriteAllBytes(VdkFile, ProtectedData.Protect(vdk, null, DataProtectionScope.CurrentUser));
+        }
+        catch { /* best effort */ }
+    }
+
+    // ---- hive credential (DPAPI) — minted once, reused across launches ----
+    public HiveIdentity.Cred? LoadHiveCred()
+    {
+        try
+        {
+            if (!File.Exists(HiveFile)) return null;
+            var json = Encoding.UTF8.GetString(ProtectedData.Unprotect(File.ReadAllBytes(HiveFile), null, DataProtectionScope.CurrentUser));
+            return JsonSerializer.Deserialize<HiveIdentity.Cred>(json);
+        }
+        catch { return null; }
+    }
+
+    public void SaveHiveCred(HiveIdentity.Cred cred)
+    {
+        try
+        {
+            var enc = ProtectedData.Protect(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(cred)), null, DataProtectionScope.CurrentUser);
+            File.WriteAllBytes(HiveFile, enc);
         }
         catch { /* best effort */ }
     }

@@ -24,16 +24,25 @@ public sealed class AccountClient
     private string? _accessToken;
     private DateTimeOffset _accessExpiry = DateTimeOffset.MinValue;
     private string? _capturedPassword;
+    private string? _capturedEmail;
 
     public AccountClient(Session session) => _session = session;
 
     /// <summary>Return (and clear) the account password captured during the last interactive
-    /// sign-in — used once to unlock the vault, then forgotten.</summary>
+    /// sign-in — used once to unlock the vault + mint the hive identity, then forgotten.</summary>
     public string? PopCapturedPassword()
     {
         var p = _capturedPassword;
         _capturedPassword = null;
         return p;
+    }
+
+    /// <summary>The account email captured during the last interactive sign-in (for hive minting).</summary>
+    public string? PopCapturedEmail()
+    {
+        var e = _capturedEmail;
+        _capturedEmail = null;
+        return e;
     }
 
     public bool IsSignedIn => !string.IsNullOrEmpty(_session.LoadRefreshToken());
@@ -59,6 +68,7 @@ public sealed class AccountClient
         if (ok != true || win.Callback == null) return false;
 
         _capturedPassword = win.CapturedPassword;   // used once to unlock the vault
+        _capturedEmail = win.CapturedEmail;          // used once to mint the hive identity
 
         var code = QueryValue(win.Callback, "code");
         var rstate = QueryValue(win.Callback, "state");

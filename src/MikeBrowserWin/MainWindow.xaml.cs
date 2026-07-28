@@ -93,7 +93,12 @@ public partial class MainWindow : Window
         }
 
         UpdateAuthUI();
-        if (_account.IsSignedIn) await RefreshBookmarks();
+        if (_account.IsSignedIn)
+        {
+            await RefreshBookmarks();
+            var hc = _session.LoadHiveCred();          // reconnect the agent on relaunch
+            if (hc != null) ConnectAgent(hc);
+        }
 
         // A URL from the command line (default-browser launch) wins over session restore.
         var start = App.StartupUrl ?? _session.LastUrl;
@@ -298,6 +303,7 @@ public partial class MainWindow : Window
         var url = tab.View?.Source?.ToString() ?? "";
         tab.Url = url;
         if (!string.IsNullOrWhiteSpace(url) && url != "about:blank") _session.LastUrl = url;
+        if (MikeAgent.Instance.Connected) MikeAgent.Instance.OnPageVisited(url, tab.Title);
         if (tab == _active)
         {
             if (!AddressBar.IsKeyboardFocusWithin) AddressBar.Text = url;
@@ -315,6 +321,26 @@ public partial class MainWindow : Window
     private void Back_Click(object sender, RoutedEventArgs e) { if (ActiveView?.CanGoBack == true) ActiveView.GoBack(); }
     private void Fwd_Click(object sender, RoutedEventArgs e) { if (ActiveView?.CanGoForward == true) ActiveView.GoForward(); }
     private void Reload_Click(object sender, RoutedEventArgs e) => ActiveView?.Reload();
+
+    // ======================= AGENT (hive + inspector) =======================
+    private void Agent_Click(object sender, RoutedEventArgs e)
+        => new AgentInspectorWindow { Owner = this }.Show();
+
+    private void ConnectAgent(HiveIdentity.Cred cred)
+    {
+        // The agent opens pages siblings hand off, and answers questions from Mike's history.
+        MikeAgent.Instance.OpenTab = url => Dispatcher.BeginInvoke(new Action(() => NewTab(url)));
+        MikeAgent.Instance.SearchHistory = SearchBookmarks;
+        MikeAgent.Instance.Connect(cred);
+    }
+
+    private IReadOnlyList<string> SearchBookmarks(string? q)
+    {
+        var s = (q ?? "").Trim().ToLowerInvariant();
+        return _bookmarks
+            .Where(b => s.Length == 0 || ($"{b.Title} {b.Url}").ToLowerInvariant().Contains(s))
+            .Take(8).Select(b => $"{b.Title} — {b.Url}").ToList();
+    }
 
     private void Address_KeyDown(object sender, KeyEventArgs e)
     {
@@ -438,6 +464,7 @@ public partial class MainWindow : Window
         {
             _account.SignOut();
             _vault.Lock();
+            MikeAgent.Instance.Disconnect();
             _bookmarks = new();
             UpdateAuthUI();
             UpdateStar();
@@ -449,9 +476,19 @@ public partial class MainWindow : Window
         SignInBtn.IsEnabled = true;
         if (ok)
         {
+            // Unlock the vault + mint the hive identity with the account creds captured at sign-in.
             var pw = _account.PopCapturedPassword();
+            var em = _account.PopCapturedEmail();
             if (!string.IsNullOrEmpty(pw)) { try { await _vault.UnlockAsync(pw); } catch { } }
             await RefreshBookmarks();
+            try
+            {
+                var cred = (!string.IsNullOrEmpty(em) && !string.IsNullOrEmpty(pw))
+                    ? await HiveIdentity.EnsureAsync(_session, em!, pw!)
+                    : _session.LoadHiveCred();
+                if (cred != null) ConnectAgent(cred);
+            }
+            catch { }
         }
         UpdateAuthUI();
         UpdateStar();

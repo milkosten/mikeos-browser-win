@@ -21,12 +21,15 @@ public partial class LoginWindow : Window
     /// MikeBrowser can derive the vault key (VAULT.md v1 "reuse account password"). Never stored.
     /// </summary>
     public string? CapturedPassword { get; private set; }
+    public string? CapturedEmail { get; private set; }
 
-    // Injected into the login page: posts the password value on submit/Enter so the app can
-    // derive the vault key. Only the account.osmike.com login page is ever loaded here.
+    // Injected into the login page: posts the email + password on submit so the app can derive
+    // the vault key and mint the hive identity. Only account.osmike.com's login page loads here.
     private const string CaptureScript = @"
 (function(){ if(window.__mbpw)return; window.__mbpw=1;
   function grab(){ var p=document.querySelector('input[type=password]');
+    var e=document.querySelector('input[type=email],input[name*=email i],input[autocomplete=username],input[type=text]');
+    if(e&&e.value) window.chrome.webview.postMessage('em:'+e.value);
     if(p&&p.value) window.chrome.webview.postMessage('pw:'+p.value); }
   document.addEventListener('submit', grab, true);
   document.addEventListener('keydown', function(e){ if(e.key==='Enter') grab(); }, true);
@@ -70,6 +73,7 @@ public partial class LoginWindow : Window
                 {
                     var msg = e.TryGetWebMessageAsString();
                     if (msg != null && msg.StartsWith("pw:")) CapturedPassword = msg[3..];
+                    else if (msg != null && msg.StartsWith("em:")) CapturedEmail = msg[3..];
                 }
                 catch { }
             };

@@ -54,6 +54,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <Button x:Name="BackBtn" Grid.Column="0" Style="{StaticResource ToolBtn}" Content="&#x2039;" Click="Back_Click" ToolTip="Back"/>
@@ -71,7 +72,8 @@
 
                 <Button x:Name="StarBtn" Grid.Column="4" Style="{StaticResource ToolBtn}" Content="&#x2606;" Click="Star_Click" ToolTip="Bookmark this page"/>
                 <Button x:Name="BookmarksBtn" Grid.Column="5" Style="{StaticResource ToolBtn}" Width="Auto" Padding="10,0" Content="Bookmarks" Click="Bookmarks_Click"/>
-                <Button x:Name="SignInBtn" Grid.Column="6" Style="{StaticResource ToolBtn}" Width="Auto" Padding="12,0" Foreground="#37C871" Content="Sign in" Click="SignIn_Click"/>
+                <Button x:Name="AgentBtn" Grid.Column="6" Style="{StaticResource ToolBtn}" Foreground="#5AA4FF" Content="&#x1F916;" ToolTip="MikeBrowser Agent — what your browser's AI is doing" Click="Agent_Click"/>
+                <Button x:Name="SignInBtn" Grid.Column="7" Style="{StaticResource ToolBtn}" Width="Auto" Padding="12,0" Foreground="#37C871" Content="Sign in" Click="SignIn_Click"/>
             </Grid>
         </Border>
 
