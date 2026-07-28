@@ -24,23 +24,27 @@ MikeBrowserWin (WinUI 3, .NET 8, win-x64 self-contained)
 └─ Services/SessionStore: persist the profile creds encrypted at rest (Windows DPAPI)
 ```
 
-## Auth flow (Chrome-style profile sign-in, on the LIVE IdP — no OAuth AS needed yet)
-The OAuth 2.0 AS in `ACCOUNT-OSMIKE-OAUTH-PLAN.md` is not built yet, so v1 uses the live IdP:
-1. User clicks **Sign in** → enters email + password (their osmike.com account).
-2. App `POST account.osmike.com/api/auth/login` → **JWT** (30-day).
-3. App obtains a **user-scoped key** for browser-cloud. **[TO VALIDATE against the live IdP]** — the
-   two candidate paths, pick whichever the IdP supports cleanly:
-   - **a. Per-user key:** `POST/GET /api/keys` (JWT-auth) → a user key that browser-cloud's `/resolve` maps to `user_id`.
-   - **b. Device+agent:** register this PC as a device (`/api/devices/pair`) → mint a `MikeBrowser` agent key (`POST /api/mikeos/agents`). More faithful to the phone model; gives the PC a `device_id`.
-4. Store `{ user_id, key, refresh/JWT }` via **DPAPI**; browser-cloud calls carry `X-API-KEY: <key>`.
-5. Bookmarks/history now sync with the phone (same `user_id`). Verified cross-device+isolation on the
-   Android test bench already.
-6. **Seam for the future:** when the OAuth AS ships, replace steps 1–3 with "Sign in with MikeOS"
-   (Auth Code + PKCE) → Bearer JWT; browser-cloud already plans dual-auth. One-file change.
+## Auth flow — Chrome-style profile sign-in (VALIDATED end-to-end on the LIVE IdP, 2026-07-28)
+The OAuth 2.0 AS in `ACCOUNT-OSMIKE-OAUTH-PLAN.md` isn't built yet, so v1 drives the live IdP. The
+user only types **email + password once**; everything below is programmatic (no browser round-trip,
+no code to read). All calls to `https://account.osmike.com`:
 
-> Open item requiring the owner or a test account: validate step 3 against the live IdP (need a
-> login that isn't Mike's real password, or Mike runs the one call). Until then the sync client is
-> testable directly with a known agent key.
+1. `POST /api/auth/login {email,password}` → `{ token: <JWT>, user:{id} }`.  *(the only human step)*
+2. Generate a per-machine `deviceId` (UUID, persisted). `POST /api/devices/pair/request {deviceId, deviceName}` *(no auth)* → `{ code, activationUrl }`.
+3. **Auto-approve with the JWT** (the app is the logged-in user): `POST /api/devices/pair/activate` *(Bearer JWT)* `{ code, mode:"new_slot", slot_name:"<hostname>" }` → `{ device_id, session_token }` (the **canonical** device_id; may differ from the requested one — use the returned one).
+   - Re-sign-in on the same PC: the slot already exists → `new_slot` 409s ("slot with that name"); handle by `GET /api/devices/slots` then `mode:"claim_existing", existing_device_id/slot_id`. Use the machine hostname (or a stored slot_id) as the slot name so re-login is idempotent.
+4. `POST /api/mikeos/agents {deviceId, app:"MikeBrowser"}` *(no auth — a linked device_id IS the credential)* → `{ agent_key, name:"<user>/<device>/MikeBrowser", user_id }`.
+5. Persist `{ user_id, deviceId, slot_id, agent_key }` via **DPAPI** (encrypted at rest). All
+   `mikeos-browser-cloud` calls carry `X-API-KEY: agent_key`.
+6. Bookmarks/history now sync with the phone (same `user_id`). **Proven:** the minted key read
+   Mike's live bookmark from browser-cloud; cross-device sync + account isolation already verified on
+   the Android bench.
+7. **Seam for the future:** when the OAuth AS ships, swap steps 1–4 for "Sign in with MikeOS"
+   (Auth Code + PKCE) → Bearer JWT; browser-cloud plans dual-auth. Isolated in `AccountClient`.
+
+> Endpoints confirmed against the live IdP (`mikeoscomputers`, repo cloned at
+> `/home/mikeos/projects/mikeoscomputers`). `pair/request` is unauth; `pair/activate` needs the JWT;
+> `/api/mikeos/agents` needs only a linked `deviceId`.
 
 ## Milestones
 1. **VM up** (done — installing) → install .NET 8 SDK + WinUI 3 + WebView2 + VS Build Tools in the guest.
