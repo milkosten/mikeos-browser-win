@@ -1,0 +1,9 @@
+<Application x:Class="MikeBrowserWin.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="MikeGreen" Color="#37C871"/>
+        <SolidColorBrush x:Key="BarBg" Color="#161D19"/>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,67 @@
+<Window x:Class="MikeBrowserWin.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="MikeBrowser" Height="820" Width="1200"
+        WindowStartupLocation="CenterScreen" Background="#0F1512">
+    <Window.Resources>
+        <Style x:Key="ToolBtn" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#E8EFE9"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#22302A"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="#161D19" Padding="8,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="BackBtn" Grid.Column="0" Style="{StaticResource ToolBtn}" Content="&#x2039;" Click="Back_Click" ToolTip="Back"/>
+                <Button x:Name="FwdBtn" Grid.Column="1" Style="{StaticResource ToolBtn}" Content="&#x203A;" Click="Fwd_Click" ToolTip="Forward"/>
+                <Button x:Name="ReloadBtn" Grid.Column="2" Style="{StaticResource ToolBtn}" Content="&#x21BB;" Click="Reload_Click" ToolTip="Reload"/>
+
+                <Border Grid.Column="3" Background="#0F1512" CornerRadius="18" Margin="8,0" Padding="14,0">
+                    <TextBox x:Name="AddressBar" VerticalAlignment="Center" BorderThickness="0"
+                             Background="Transparent" Foreground="#E8EFE9" CaretBrush="#37C871"
+                             FontSize="14" Height="30"
+                             KeyDown="Address_KeyDown"
+                             GotKeyboardFocus="Address_GotFocus"
+                             PreviewMouseLeftButtonDown="Address_PreviewMouseDown"/>
+                </Border>
+
+                <Button x:Name="StarBtn" Grid.Column="4" Style="{StaticResource ToolBtn}" Content="&#x2606;" Click="Star_Click" ToolTip="Bookmark this page"/>
+                <Button x:Name="BookmarksBtn" Grid.Column="5" Style="{StaticResource ToolBtn}" Width="Auto" Padding="10,0" Content="Bookmarks" Click="Bookmarks_Click"/>
+                <Button x:Name="SignInBtn" Grid.Column="6" Style="{StaticResource ToolBtn}" Width="Auto" Padding="12,0" Foreground="#37C871" Content="Sign in" Click="SignIn_Click"/>
+            </Grid>
+        </Border>
+
+        <wv2:WebView2 x:Name="Web"/>
+    </DockPanel>
+</Window>
