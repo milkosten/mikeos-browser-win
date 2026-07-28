@@ -24,7 +24,28 @@ MikeBrowserWin (WinUI 3, .NET 8, win-x64 self-contained)
 └─ Services/SessionStore: persist the profile creds encrypted at rest (Windows DPAPI)
 ```
 
-## Auth flow — Chrome-style profile sign-in (VALIDATED end-to-end on the LIVE IdP, 2026-07-28)
+## Auth — "Sign in with MikeOS" via OAuth 2.0 (LIVE, PRIMARY as of 2026-07-28)
+The OAuth AS on `account.osmike.com` is built + live, and the desktop path is now wired:
+- **Client registered:** `mikeos-browser` (public, PKCE S256; redirect URIs `mikeos-browser://auth/callback`
+  and `http://127.0.0.1:8765/callback`; scopes `openid profile email browser.read browser.write`).
+- **browser-cloud accepts Bearer JWTs** (dual-auth: validates RS256 via the IdP JWKS, `iss`+`exp`+`browser.*`
+  scope → `sub`=user_id; legacy `X-API-KEY` still works). **Proven end-to-end**: a real Bearer minted for
+  this client read Mike's live bookmark from browser-cloud.
+
+**Desktop flow (native, RFC 8252):**
+1. App generates PKCE `verifier`/`challenge` + `state`, opens `GET /oauth/authorize?response_type=code&client_id=mikeos-browser&redirect_uri=…&scope=openid%20browser.read%20browser.write&code_challenge=…&code_challenge_method=S256&state=…` (in a WebView2 or the system browser).
+2. User signs in / consents on account.osmike.com → redirect to the registered URI with `?code=&state=`.
+   The app intercepts it (WebView2 `NavigationStarting`, or a loopback `HttpListener` on :8765).
+3. `POST /oauth/token` (`grant_type=authorization_code`, `code`, `code_verifier`, `client_id`, `redirect_uri`)
+   → `{ access_token (RS256 JWT, 1h), refresh_token (30d, rotating), scope }`.
+4. Store the **refresh_token** via **DPAPI**; keep the access token in memory; auto-refresh via
+   `grant_type=refresh_token` (rotates). All `mikeos-browser-cloud` calls send `Authorization: Bearer <jwt>`.
+5. Sign out = discard tokens + `POST /oauth/revoke`.
+
+This is the Chrome-style profile sign-in the owner asked for, done as standards-compliant OAuth. The
+legacy device-pair path below still works and remains a documented fallback.
+
+## Legacy fallback — device-pair sign-in (also VALIDATED on the LIVE IdP, 2026-07-28)
 The OAuth 2.0 AS in `ACCOUNT-OSMIKE-OAUTH-PLAN.md` isn't built yet, so v1 drives the live IdP. The
 user only types **email + password once**; everything below is programmatic (no browser round-trip,
 no code to read). All calls to `https://account.osmike.com`:
