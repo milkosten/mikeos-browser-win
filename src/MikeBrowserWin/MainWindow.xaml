@@ -1,7 +1,6 @@
 <Window x:Class="MikeBrowserWin.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="MikeBrowser" Height="820" Width="1200"
         WindowStartupLocation="CenterScreen" Background="#0F1512"
         PreviewKeyDown="Window_PreviewKeyDown">
@@ -32,6 +31,18 @@
     </Window.Resources>
 
     <DockPanel>
+        <!-- Tab strip -->
+        <Border DockPanel.Dock="Top" Background="#0C110E" Padding="6,5,6,0">
+            <StackPanel Orientation="Horizontal">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="TabStrip" Orientation="Horizontal"/>
+                </ScrollViewer>
+                <Button x:Name="NewTabBtn" Style="{StaticResource ToolBtn}" Content="+" ToolTip="New tab (Ctrl+T)" Click="NewTab_Click"/>
+                <TextBlock x:Name="MemLabel" Foreground="#5f7a6c" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Toolbar -->
         <Border DockPanel.Dock="Top" Background="#161D19" Padding="8,6">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -63,6 +74,7 @@
             </Grid>
         </Border>
 
-        <wv2:WebView2 x:Name="Web"/>
+        <!-- Active tab's WebView2 lives here -->
+        <Grid x:Name="TabHost"/>
     </DockPanel>
 </Window>
