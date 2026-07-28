@@ -16,6 +16,24 @@ public partial class LoginWindow : Window
 
     public Uri? Callback { get; private set; }
 
+    /// <summary>
+    /// The account password the user typed on the MikeOS login page — captured transiently so
+    /// MikeBrowser can derive the vault key (VAULT.md v1 "reuse account password"). Never stored.
+    /// </summary>
+    public string? CapturedPassword { get; private set; }
+
+    // Injected into the login page: posts the password value on submit/Enter so the app can
+    // derive the vault key. Only the account.osmike.com login page is ever loaded here.
+    private const string CaptureScript = @"
+(function(){ if(window.__mbpw)return; window.__mbpw=1;
+  function grab(){ var p=document.querySelector('input[type=password]');
+    if(p&&p.value) window.chrome.webview.postMessage('pw:'+p.value); }
+  document.addEventListener('submit', grab, true);
+  document.addEventListener('keydown', function(e){ if(e.key==='Enter') grab(); }, true);
+  document.addEventListener('click', function(e){ var t=e.target;
+    if(t&&(t.type==='submit'||/sign|log|continue|approve/i.test(t.textContent||''))) grab(); }, true);
+})();";
+
     public LoginWindow(string authorizeUrl, string redirectUri)
     {
         InitializeComponent();
@@ -45,6 +63,19 @@ public partial class LoginWindow : Window
                     Callback = new Uri(e.Uri);
                     Dispatcher.BeginInvoke(new Action(() => { DialogResult = true; }));
                 }
+            };
+            Web.CoreWebView2.WebMessageReceived += (_, e) =>
+            {
+                try
+                {
+                    var msg = e.TryGetWebMessageAsString();
+                    if (msg != null && msg.StartsWith("pw:")) CapturedPassword = msg[3..];
+                }
+                catch { }
+            };
+            Web.CoreWebView2.DOMContentLoaded += async (_, _) =>
+            {
+                try { await Web.CoreWebView2.ExecuteScriptAsync(CaptureScript); } catch { }
             };
             Web.CoreWebView2.Navigate(_authorizeUrl);
         }

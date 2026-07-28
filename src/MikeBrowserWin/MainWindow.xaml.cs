@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,13 +17,36 @@ public partial class MainWindow : Window
     private readonly Session _session = new();
     private readonly AccountClient _account;
     private readonly BrowserCloudClient _cloud = new();
+    private readonly VaultClient _vault;
     private List<Bookmark> _bookmarks = new();
     private bool _ready;
+
+    // Injected into every page: recognises the login fields, offers to save on submit, and
+    // exposes window.__mbfill(u,p) for autofill. Posts JSON to the app via webview.postMessage.
+    private const string CredScript = @"
+(function(){ if(window.__mbcred)return; window.__mbcred=1;
+  function post(o){ try{ window.chrome.webview.postMessage(JSON.stringify(o)); }catch(e){} }
+  function findUser(pw){ var f=pw.form||document;
+    var u=f.querySelector('input[type=email],input[autocomplete=username],input[name*=user i],input[name*=email i],input[id*=user i],input[id*=email i]');
+    if(!u){ var ins=[].slice.call(f.querySelectorAll('input[type=text],input:not([type])')); u=ins[0]; }
+    return u; }
+  function grab(){ var pw=document.querySelector('input[type=password]'); if(!pw||!pw.value)return;
+    var u=findUser(pw); post({t:'save',host:location.host,u:u?u.value:'',p:pw.value}); }
+  document.addEventListener('submit', grab, true);
+  document.addEventListener('keydown', function(e){ if(e.key==='Enter') setTimeout(grab,0); }, true);
+  document.addEventListener('click', function(e){ var t=e.target;
+    if(t&&(t.type==='submit'||/sign in|log ?in|login|sign on|continue/i.test((t.textContent||'')))) setTimeout(grab,0); }, true);
+  if(document.querySelector('input[type=password]')) post({t:'loginform',host:location.host});
+  window.__mbfill=function(u,p){ var pw=document.querySelector('input[type=password]'); if(!pw)return;
+    var us=findUser(pw); if(us){us.value=u; us.dispatchEvent(new Event('input',{bubbles:true})); us.dispatchEvent(new Event('change',{bubbles:true}));}
+    pw.value=p; pw.dispatchEvent(new Event('input',{bubbles:true})); pw.dispatchEvent(new Event('change',{bubbles:true})); };
+})();";
 
     public MainWindow()
     {
         InitializeComponent();
         _account = new AccountClient(_session);
+        _vault = new VaultClient(_account, _session);   // unlocked from the cached VDK if present
         Loaded += async (_, _) => await InitAsync();
     }
 
@@ -39,6 +63,13 @@ public partial class MainWindow : Window
 
             Web.NavigationCompleted += (_, _) => OnNavigated();
             Web.SourceChanged += (_, _) => OnNavigated();
+
+            // Password manager: recognise login fields, offer save, autofill.
+            Web.CoreWebView2.WebMessageReceived += OnWebMessage;
+            Web.CoreWebView2.DOMContentLoaded += async (_, _) =>
+            {
+                try { await Web.CoreWebView2.ExecuteScriptAsync(CredScript); } catch { }
+            };
 
             var start = _session.LastUrl;
             Web.CoreWebView2.Navigate(string.IsNullOrWhiteSpace(start) ? HomePage : start);
@@ -86,6 +117,46 @@ public partial class MainWindow : Window
             AddressBar.SelectAll();
         }
     }
+
+    // Password manager: messages from the injected content script.
+    private async void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        string msg;
+        try { msg = e.TryGetWebMessageAsString() ?? ""; } catch { return; }
+        if (msg.Length == 0 || msg[0] != '{') return;
+        try
+        {
+            using var doc = JsonDocument.Parse(msg);
+            var r = doc.RootElement;
+            var t = r.TryGetProperty("t", out var tt) ? tt.GetString() : null;
+            var host = r.TryGetProperty("host", out var h) ? h.GetString() ?? "" : "";
+            if (string.IsNullOrEmpty(t) || string.IsNullOrEmpty(host) || !_vault.IsUnlocked) return;
+
+            if (t == "loginform")
+            {
+                var cred = await _vault.GetPasswordAsync(host);
+                if (cred != null)
+                    await Web.CoreWebView2.ExecuteScriptAsync(
+                        $"window.__mbfill && window.__mbfill({JsonEnc(cred.Value.User)},{JsonEnc(cred.Value.Pass)})");
+            }
+            else if (t == "save")
+            {
+                var u = r.TryGetProperty("u", out var uu) ? uu.GetString() ?? "" : "";
+                var p = r.TryGetProperty("p", out var pp) ? pp.GetString() ?? "" : "";
+                if (string.IsNullOrEmpty(p)) return;
+                // Don't re-prompt if the same password is already saved for this host.
+                var existing = await _vault.GetPasswordAsync(host);
+                if (existing != null && existing.Value.Pass == p) return;
+                var res = MessageBox.Show(
+                    $"Save this password for {host} in MikeVault?\n\nIt syncs (encrypted) to your other devices.",
+                    "MikeBrowser", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (res == MessageBoxResult.Yes) await _vault.SavePasswordAsync(host, u, p);
+            }
+        }
+        catch { }
+    }
+
+    private static string JsonEnc(string s) => JsonSerializer.Serialize(s);
 
     private void Back_Click(object sender, RoutedEventArgs e) { if (Web.CanGoBack) Web.GoBack(); }
     private void Fwd_Click(object sender, RoutedEventArgs e) { if (Web.CanGoForward) Web.GoForward(); }
@@ -177,7 +248,13 @@ public partial class MainWindow : Window
         SignInBtn.IsEnabled = false;
         bool ok = await _account.SignInAsync(this);
         SignInBtn.IsEnabled = true;
-        if (ok) await RefreshBookmarks();
+        if (ok)
+        {
+            // Unlock the vault with the account password captured during sign-in (VAULT.md v1).
+            var pw = _account.PopCapturedPassword();
+            if (!string.IsNullOrEmpty(pw)) { try { await _vault.UnlockAsync(pw); } catch { } }
+            await RefreshBookmarks();
+        }
         UpdateAuthUI();
         UpdateStar();
     }

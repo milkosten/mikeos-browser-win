@@ -17,14 +17,24 @@ public sealed class AccountClient
     private const string Authority = "https://account.osmike.com";
     private const string ClientId = "mikeos-browser";
     private const string RedirectUri = "http://127.0.0.1:8765/callback";     // exact-match registered
-    private const string Scope = "openid profile email browser.read browser.write";
+    private const string Scope = "openid profile email browser.read browser.write vault.read vault.write";
 
     private readonly Session _session;
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
     private string? _accessToken;
     private DateTimeOffset _accessExpiry = DateTimeOffset.MinValue;
+    private string? _capturedPassword;
 
     public AccountClient(Session session) => _session = session;
+
+    /// <summary>Return (and clear) the account password captured during the last interactive
+    /// sign-in — used once to unlock the vault, then forgotten.</summary>
+    public string? PopCapturedPassword()
+    {
+        var p = _capturedPassword;
+        _capturedPassword = null;
+        return p;
+    }
 
     public bool IsSignedIn => !string.IsNullOrEmpty(_session.LoadRefreshToken());
 
@@ -47,6 +57,8 @@ public sealed class AccountClient
         var win = new LoginWindow(authUrl, RedirectUri) { Owner = owner };
         var ok = win.ShowDialog();
         if (ok != true || win.Callback == null) return false;
+
+        _capturedPassword = win.CapturedPassword;   // used once to unlock the vault
 
         var code = QueryValue(win.Callback, "code");
         var rstate = QueryValue(win.Callback, "state");

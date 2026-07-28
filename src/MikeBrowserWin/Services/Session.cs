@@ -14,6 +14,7 @@ public sealed class Session
     private static readonly string Dir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MikeBrowser");
     private static readonly string RefreshFile = Path.Combine(Dir, "refresh.bin");
+    private static readonly string VdkFile = Path.Combine(Dir, "vdk.bin");
     private static readonly string PrefsFile = Path.Combine(Dir, "prefs.json");
 
     private sealed class Prefs { public string? LastUrl { get; set; } }
@@ -40,6 +41,27 @@ public sealed class Session
             if (string.IsNullOrEmpty(token)) { if (File.Exists(RefreshFile)) File.Delete(RefreshFile); return; }
             var enc = ProtectedData.Protect(Encoding.UTF8.GetBytes(token), null, DataProtectionScope.CurrentUser);
             File.WriteAllBytes(RefreshFile, enc);
+        }
+        catch { /* best effort */ }
+    }
+
+    // ---- vault data key (DPAPI, cached so the vault stays unlocked across launches) ----
+    public byte[]? LoadVdk()
+    {
+        try
+        {
+            if (!File.Exists(VdkFile)) return null;
+            return ProtectedData.Unprotect(File.ReadAllBytes(VdkFile), null, DataProtectionScope.CurrentUser);
+        }
+        catch { return null; }
+    }
+
+    public void SaveVdk(byte[]? vdk)
+    {
+        try
+        {
+            if (vdk == null || vdk.Length == 0) { if (File.Exists(VdkFile)) File.Delete(VdkFile); return; }
+            File.WriteAllBytes(VdkFile, ProtectedData.Protect(vdk, null, DataProtectionScope.CurrentUser));
         }
         catch { /* best effort */ }
     }
