@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="MikeBrowser" Height="820" Width="1200"
         WindowStartupLocation="CenterScreen" Background="#0F1512"
+        Icon="assets/mikebrowser.ico"
         PreviewKeyDown="Window_PreviewKeyDown">
     <Window.Resources>
         <Style x:Key="ToolBtn" TargetType="Button">

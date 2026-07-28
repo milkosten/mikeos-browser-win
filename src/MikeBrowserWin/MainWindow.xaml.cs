@@ -95,7 +95,8 @@ public partial class MainWindow : Window
         UpdateAuthUI();
         if (_account.IsSignedIn) await RefreshBookmarks();
 
-        var start = _session.LastUrl;
+        // A URL from the command line (default-browser launch) wins over session restore.
+        var start = App.StartupUrl ?? _session.LastUrl;
         NewTab(string.IsNullOrWhiteSpace(start) ? HomePage : start);
 
         _governor.Tick += async (_, _) => await Govern();

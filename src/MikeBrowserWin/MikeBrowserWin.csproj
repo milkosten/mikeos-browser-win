@@ -14,6 +14,7 @@
     <AssemblyTitle>MikeBrowser</AssemblyTitle>
     <Company>MikeOS</Company>
     <Product>MikeBrowser for Windows</Product>
+    <ApplicationIcon>assets\mikebrowser.ico</ApplicationIcon>
     <!-- Single-file self-contained: WebView2 native loader must extract at runtime. -->
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableComHosting>false</EnableComHosting>
@@ -22,6 +23,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2792.45" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="assets\mikebrowser.ico" />
   </ItemGroup>
 
 </Project>
