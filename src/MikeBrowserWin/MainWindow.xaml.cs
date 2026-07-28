@@ -73,6 +73,20 @@ public partial class MainWindow : Window
         UpdateStar();
     }
 
+    // Alt+D / Ctrl+L → focus + select the address bar (standard browser shortcut).
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        bool altD = (Keyboard.Modifiers & ModifierKeys.Alt) != 0 &&
+                    (e.SystemKey == Key.D || e.Key == Key.D);
+        bool ctrlL = (Keyboard.Modifiers & ModifierKeys.Control) != 0 && e.Key == Key.L;
+        if (altD || ctrlL)
+        {
+            e.Handled = true;
+            AddressBar.Focus();
+            AddressBar.SelectAll();
+        }
+    }
+
     private void Back_Click(object sender, RoutedEventArgs e) { if (Web.CanGoBack) Web.GoBack(); }
     private void Fwd_Click(object sender, RoutedEventArgs e) { if (Web.CanGoForward) Web.GoForward(); }
     private void Reload_Click(object sender, RoutedEventArgs e) => Web.Reload();
@@ -161,7 +175,7 @@ public partial class MainWindow : Window
         }
         SignInBtn.Content = "Signing in…";
         SignInBtn.IsEnabled = false;
-        bool ok = await _account.SignInAsync();
+        bool ok = await _account.SignInAsync(this);
         SignInBtn.IsEnabled = true;
         if (ok) await RefreshBookmarks();
         UpdateAuthUI();

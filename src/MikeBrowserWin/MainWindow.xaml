@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="MikeBrowser" Height="820" Width="1200"
-        WindowStartupLocation="CenterScreen" Background="#0F1512">
+        WindowStartupLocation="CenterScreen" Background="#0F1512"
+        PreviewKeyDown="Window_PreviewKeyDown">
     <Window.Resources>
         <Style x:Key="ToolBtn" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>

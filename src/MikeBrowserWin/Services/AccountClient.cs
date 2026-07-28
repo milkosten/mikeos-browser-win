@@ -1,9 +1,8 @@
-using System.Diagnostics;
-using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Windows;
 
 namespace MikeBrowserWin.Services;
 
@@ -18,7 +17,6 @@ public sealed class AccountClient
     private const string Authority = "https://account.osmike.com";
     private const string ClientId = "mikeos-browser";
     private const string RedirectUri = "http://127.0.0.1:8765/callback";     // exact-match registered
-    private const string ListenPrefix = "http://127.0.0.1:8765/";           // catch any path on the port
     private const string Scope = "openid profile email browser.read browser.write";
 
     private readonly Session _session;
@@ -30,34 +28,28 @@ public sealed class AccountClient
 
     public bool IsSignedIn => !string.IsNullOrEmpty(_session.LoadRefreshToken());
 
-    /// <summary>Interactive sign-in. Returns true on success.</summary>
-    public async Task<bool> SignInAsync()
+    /// <summary>
+    /// Interactive sign-in — hosted INSIDE MikeBrowser (embedded WebView2), not the system
+    /// browser. Opens the account.osmike.com authorize page in a child window and captures the
+    /// loopback redirect + PKCE code exchange. Returns true on success.
+    /// </summary>
+    public async Task<bool> SignInAsync(Window owner)
     {
         var verifier = Base64Url(RandomNumberGenerator.GetBytes(32));
         var challenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
         var state = Base64Url(RandomNumberGenerator.GetBytes(16));
 
-        using var listener = new HttpListener();
-        listener.Prefixes.Add(ListenPrefix);
-        listener.Start();
-
         var authUrl = $"{Authority}/oauth/authorize?response_type=code&client_id={ClientId}" +
                       $"&redirect_uri={Uri.EscapeDataString(RedirectUri)}" +
                       $"&scope={Uri.EscapeDataString(Scope)}&state={state}" +
                       $"&code_challenge={challenge}&code_challenge_method=S256";
-        Process.Start(new ProcessStartInfo(authUrl) { UseShellExecute = true });
 
-        HttpListenerContext ctx;
-        try { ctx = await listener.GetContextAsync(); }
-        catch { return false; }
+        var win = new LoginWindow(authUrl, RedirectUri) { Owner = owner };
+        var ok = win.ShowDialog();
+        if (ok != true || win.Callback == null) return false;
 
-        var code = ctx.Request.QueryString["code"];
-        var rstate = ctx.Request.QueryString["state"];
-        await RespondAsync(ctx, string.IsNullOrEmpty(code)
-            ? "Sign-in was cancelled. You can close this tab."
-            : "You're signed in to MikeBrowser. You can close this tab.");
-        listener.Stop();
-
+        var code = QueryValue(win.Callback, "code");
+        var rstate = QueryValue(win.Callback, "state");
         if (string.IsNullOrEmpty(code) || rstate != state) return false;
 
         return await ExchangeAsync(new Dictionary<string, string>
@@ -68,6 +60,17 @@ public sealed class AccountClient
             ["client_id"] = ClientId,
             ["redirect_uri"] = RedirectUri,
         });
+    }
+
+    private static string? QueryValue(Uri uri, string key)
+    {
+        foreach (var part in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var kv = part.Split('=', 2);
+            if (Uri.UnescapeDataString(kv[0]) == key)
+                return kv.Length > 1 ? Uri.UnescapeDataString(kv[1]) : "";
+        }
+        return null;
     }
 
     /// <summary>A valid access token, refreshing silently if needed. Null if signed out.</summary>
@@ -110,18 +113,6 @@ public sealed class AccountClient
             return !string.IsNullOrEmpty(_accessToken);
         }
         catch { return false; }
-    }
-
-    private static async Task RespondAsync(HttpListenerContext ctx, string message)
-    {
-        var html = "<!doctype html><html><body style='font-family:Segoe UI,sans-serif;background:#0f1512;" +
-                   "color:#e8efe9;text-align:center;padding-top:90px'><h2 style='color:#37c871'>MikeBrowser</h2>" +
-                   $"<p>{message}</p></body></html>";
-        var buf = Encoding.UTF8.GetBytes(html);
-        ctx.Response.ContentType = "text/html; charset=utf-8";
-        ctx.Response.ContentLength64 = buf.Length;
-        try { await ctx.Response.OutputStream.WriteAsync(buf); } catch { }
-        ctx.Response.Close();
     }
 
     private static string Base64Url(byte[] b) =>
